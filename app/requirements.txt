@@ -1,0 +1,25 @@
+fastapi==0.95.2
+uvicorn==0.22.0
+
+# Force older numpy to fix the 1.x vs. 2.x mismatch
+numpy<2.0.0
+
+# Pin a known PyTorch version that works with that numpy
+torch==2.2.0
+
+# Use compatible versions that work together
+transformers==4.24.0
+tokenizers==0.13.3
+
+# Pin a specific version of huggingface-hub
+huggingface-hub==0.16.4
+
+# Pin a specific version of sentence-transformers
+sentence-transformers==2.2.2
+
+chromadb==0.6.3
+prometheus-fastapi-instrumentator==5.9.0
+
+beautifulsoup4==4.12.2
+requests==2.31.0
+
