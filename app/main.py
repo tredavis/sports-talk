@@ -17,16 +17,27 @@ from pydantic import BaseModel
 from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
 import chromadb
 from chromadb.utils import embedding_functions
+from fastapi.middleware.cors import CORSMiddleware
 
 from bs4 import BeautifulSoup
 
 # Optional: If using a .env file, uncomment the following lines
 from dotenv import load_dotenv
+
 load_dotenv()
 
 app = FastAPI(title="Sports Talk RAG Demo")
 
-Instrumentator().instrument(app).expose(app) # Prometheus monitoring instrumentation
+# Allow CORS for frontend development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Adjust according to frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+Instrumentator().instrument(app).expose(app)  # Prometheus monitoring instrumentation
 
 # Initialize OpenAI API Key
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -42,8 +53,8 @@ def get_embeddings(text, model, tokenizer):
     inputs = tokenizer(
         text, return_tensors="pt", padding=True, truncation=True, max_length=512
     )
-    with torch.no_grad(): # Disable gradient calculation
-        outputs = model(**inputs) 
+    with torch.no_grad():  # Disable gradient calculation
+        outputs = model(**inputs)
         # Use mean pooling
         embeddings = outputs.last_hidden_state.mean(dim=1)  # Shape: [1, 768]
 
@@ -148,7 +159,7 @@ class QueryRequest(BaseModel):
 
 
 @app.post("/ask")
-def ask_question(query_req: QueryRequest):
+async def ask_question(query_req: QueryRequest):
     print("\n" + "=" * 50)
     print(f"📝 Question: {query_req.question}")
     print("-" * 50)
@@ -159,7 +170,7 @@ def ask_question(query_req: QueryRequest):
     )
 
     # Retrieve matching docs (increase n_results since we're looking for multiple players)
-    results = collection.query(query_embeddings=[query_embedding], n_results=5)
+    results = collection.query(query_embeddings=[query_embedding], n_results=10)
     retrieved_docs = results["documents"][0]
     retrieved_ids = results["ids"][0]
 
@@ -187,15 +198,15 @@ def ask_question(query_req: QueryRequest):
     try:
         # Call OpenAI API to generate the answer
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an intelligent assistant knowledgeable about NFL players.",
+                    "content": "You are an intelligent assistant knowledgeable about NFL players. Only answer questions about the NFL. If the question is not about the NFL, say 'I'm sorry, but I can only answer questions about the NFL.'",
                 },
                 {
                     "role": "user",
-                    "content": f"Use the following context to answer the question like you are a sports analyst.\n\nContext:\n{context}\n\nQuestion: {query_req.question}",
+                    "content": f"Use the following context to answer the question like you are a sports expert.\n\nContext:\n{context}\n\nQuestion: {query_req.question}",
                 },
             ],
             max_tokens=300,
@@ -216,8 +227,8 @@ def ask_question(query_req: QueryRequest):
 
 
 @app.get("/health")
-def health_check():
-    return {"status": "ok"}
+async def health():
+    return {"status": "healthy"}
 
 
 def create_sports_docs():
@@ -345,3 +356,5 @@ if __name__ == "__main__":
     print("Starting updates...")
     update_vector_db()
     print("Updates complete!")
+
+
